@@ -1,0 +1,12 @@
+{
+  "name": "Тренер",
+  "short_name": "Тренер",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff7f9",
+  "theme_color": "#e8467c",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

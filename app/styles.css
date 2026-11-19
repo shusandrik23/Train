@@ -69,3 +69,12 @@ ol{padding-left:20px}
 .lessonhead{display:flex;align-items:center;gap:12px;padding:16px 0}
 .qtitle{font-size:20px;font-weight:800;margin:8px 0 16px}
 .pill{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--primary);margin-bottom:4px}
+.nav{gap:2px;padding:6px 4px}
+.nav button{flex:1 1 0;display:flex;flex-direction:column;align-items:center;font-size:11px;padding:6px 2px}
+.nav .ic{font-size:20px;line-height:1.2}
+.option.row{display:flex;gap:12px;align-items:center}
+.rowic{font-size:24px;flex:0 0 32px;text-align:center}
+details.card summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:center}
+details.card summary::-webkit-details-marker{display:none}
+details.card[open] summary{margin-bottom:8px}
+.row-btns{display:flex;flex-direction:column;gap:10px;margin-top:12px}

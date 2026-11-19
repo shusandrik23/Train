@@ -4,13 +4,14 @@ const XP_LESSON = 10, XP_TASK = 15;
 const $app = document.getElementById('app');
 
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
-let S = Object.assign({ adult:false, done:{}, xp:0, streak:0, lastDay:null, reports:[], tab:'learn' }, load());
+let S = Object.assign({ adult:false, done:{}, tasksDone:{}, xp:0, streak:0, lastDay:null, reports:[], tab:'learn' }, load());
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 
 const ALL = COURSE.flatMap(u => u.lessons.map(l => ({...l, unit:u})));
-const isUnlocked = id => { const i = ALL.findIndex(l => l.id === id); return i === 0 || !!S.done[ALL[i-1].id]; };
+const isUnlocked = () => true; // все уроки открыты сразу
 const hasTask = l => l.steps.some(s => s.type === 'task');
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const today = () => new Date().toISOString().slice(0,10);
 
 function bumpStreak(){
@@ -45,15 +46,15 @@ function topbar(){
     <span class="stat" title="Уроков пройдено">📘 ${done}/${ALL.length}</span></div>`;
 }
 function nav(){
-  const b = (t, label) => `<button data-tab="${t}" class="${S.tab===t?'on':''}">${label}</button>`;
-  return `<div class="nav">${b('learn','🏠 Учёба')}${b('journal','📓 Отчёты')}${b('profile','👤 Профиль')}</div>`;
+  const b = (t, ic, label) => `<button data-tab="${t}" class="${S.tab===t?'on':''}"><span class="ic">${ic}</span>${label}</button>`;
+  return `<div class="nav">${b('learn','🏠','Курс')}${b('practice','🎯','Практика')}${b('tech','📚','Техники')}${b('journal','📓','Отчёты')}${b('profile','👤','Профиль')}</div>`;
 }
 function bindNav(){ document.querySelectorAll('.nav button').forEach(x => x.onclick = () => { S.tab = x.dataset.tab; save(); render(); }); }
 
 function render(){
   if (!S.adult) return renderGate();
   window.scrollTo(0,0);
-  ({learn:renderLearn, journal:renderJournal, profile:renderProfile})[S.tab]();
+  ({learn:renderLearn, practice:renderPractice, tech:renderTech, journal:renderJournal, profile:renderProfile}[S.tab] || renderLearn)();
   bindNav();
 }
 
@@ -66,7 +67,7 @@ function renderLearn(){
     html += `<div class="unit" style="background:${u.color}"><div class="unit-title"><h2>${u.title}</h2>
       <span class="unit-count">${doneN}/${u.lessons.length}</span></div><p>${u.desc}</p></div><div class="path">`;
     u.lessons.forEach((l, i) => {
-      const st = S.done[l.id] ? 'done' : isUnlocked(l.id) ? '' : 'locked';
+      const st = S.done[l.id] ? 'done' : '';
       html += `<div style="transform:translateX(${offsets[i % offsets.length]}px);display:flex;flex-direction:column;align-items:center">
         <button class="node ${st} ${hasTask(l)?'task':''}" data-id="${l.id}" ${st==='locked'?'aria-disabled="true"':''}>${st==='done'?'✓':st==='locked'?'🔒':l.icon}</button>
         <div class="node-label" style="margin-top:6px">${esc(l.title)}${hasTask(l)?' · 📝':''}</div></div>`;
@@ -76,14 +77,15 @@ function renderLearn(){
   html += `<p class="muted center">📝 — урок с практическим заданием и отчётом</p>` + nav();
   $app.innerHTML = html;
   document.querySelectorAll('.node').forEach(n => n.onclick = () => { if (isUnlocked(n.dataset.id)) startLesson(n.dataset.id); });
-  const cur = document.querySelector('.node:not(.done):not(.locked)');
+  const cur = document.querySelector('.node:not(.done)');
   if (cur) cur.scrollIntoView({block:'center'});
 }
 
 /* ───── Lesson player ───── */
-function startLesson(id){
+function startLesson(id, mode){
   const lesson = ALL.find(l => l.id === id);
-  const queue = lesson.steps.map((s, i) => ({...s, key:i}));
+  const back = mode === 'task' ? 'practice' : 'learn';
+  const queue = lesson.steps.map((s, i) => ({...s, key:i})).filter(s => mode !== 'task' || s.type === 'task');
   const total = queue.length;
   const solved = new Set();
   let mistakes = 0;
@@ -98,7 +100,7 @@ function startLesson(id){
     if (s.type === 'theory') theory(s, head);
     else if (s.type === 'quiz') quiz(s, head);
     else task(s, head);
-    document.getElementById('x').onclick = () => { if (confirm('Выйти из урока? Прогресс урока не сохранится.')) render(); };
+    document.getElementById('x').onclick = () => { if (confirm('Выйти? Несохранённый прогресс пропадёт.')) { S.tab = back; render(); } };
   };
   const next = s => { solved.add(s.key); queue.shift(); step(); };
 
@@ -143,11 +145,19 @@ function startLesson(id){
     send.onclick = () => {
       S.reports.unshift({ lesson:lesson.title, unit:lesson.unit.title, task:s.title, date:new Date().toISOString(),
         checklist:s.checklist, text:rep.value.trim(), rating });
-      S.xp += XP_TASK; save(); next(s);
+      S.tasksDone[lesson.id] = true; S.xp += XP_TASK; save(); next(s);
     };
   }
 
   function finish(){
+    if (mode === 'task') {
+      bumpStreak(); save();
+      $app.innerHTML = `<div class="center" style="padding-top:10vh"><div class="big">💪</div><h1>Отчёт принят!</h1>
+        <p>${esc(lesson.title)}</p><div class="card"><p>⭐ +${XP_TASK} XP</p><p>🔥 Серия: ${S.streak} дн.</p></div>
+        <button class="btn" id="home">К списку заданий</button></div>`;
+      document.getElementById('home').onclick = () => { S.tab = 'practice'; render(); };
+      return;
+    }
     const first = !S.done[lesson.id];
     S.done[lesson.id] = true; S.xp += XP_LESSON; bumpStreak(); save();
     const idx = ALL.findIndex(l => l.id === lesson.id), nxt = ALL[idx+1];
@@ -157,11 +167,55 @@ function startLesson(id){
       ${first ? '' : '<p class="muted">Повторение урока</p>'}</div>
       ${nxt ? `<button class="btn" id="nx">Следующий урок: ${esc(nxt.title)}</button><div style="height:12px"></div>` : '<p>Вы прошли весь курс! 🎓</p>'}
       <button class="btn ghost" id="home">На карту</button></div>`;
-    document.getElementById('home').onclick = render;
+    document.getElementById('home').onclick = () => { S.tab = 'learn'; render(); };
     if (nxt) document.getElementById('nx').onclick = () => startLesson(nxt.id);
   }
 
   step();
+}
+
+/* ───── Practice: all tasks directly ───── */
+function renderPractice(){
+  const total = ALL.filter(hasTask).length, doneN = ALL.filter(l => S.tasksDone[l.id]).length;
+  let html = topbar() + `<h1>Практика</h1><p class="muted">Все задания сразу, без прохождения уроков. Выполнено: ${doneN}/${total}</p>`;
+  COURSE.forEach(u => {
+    const ls = u.lessons.filter(hasTask); if (!ls.length) return;
+    html += `<div class="unit" style="background:${u.color};margin-top:20px"><h2>${u.title}</h2></div>`;
+    ls.forEach(l => { const t = l.steps.find(s => s.type === 'task');
+      html += `<button class="option row" data-task="${l.id}"><span class="rowic">${S.tasksDone[l.id] ? '✅' : l.icon}</span>
+        <span><b>${cap(t.title.replace(/^(Итоговое |Финальное )?[Зз]адание:\s*/,''))}</b><br><span class="muted">${esc(l.title)} · ${t.checklist.length} пунктов</span></span></button>`; });
+  });
+  $app.innerHTML = html + nav();
+  document.querySelectorAll('[data-task]').forEach(b => b.onclick = () => openTask(b.dataset.task));
+}
+function openTask(id){
+  const l = ALL.find(x => x.id === id), t = l.steps.find(s => s.type === 'task');
+  const theory = l.steps.filter(s => s.type === 'theory');
+  window.scrollTo(0,0);
+  $app.innerHTML = `<div class="lessonhead"><button class="close" id="x" aria-label="Назад">←</button><b>${esc(l.title)}</b></div>
+    <span class="pill">Практика</span><h1 style="margin-top:4px">${t.title}</h1><div class="card">${t.body}
+    <b>Чек-лист</b><ul>${t.checklist.map(c => `<li>${c}</li>`).join('')}</ul></div>
+    <details class="card"><summary><b>📖 Теория к заданию</b></summary>${theory.map(s => s.body).join('')}</details>
+    <div class="footer"><div class="inner"><button class="btn ok" id="go">Я выполнил(а) — написать отчёт</button></div></div><div style="height:90px"></div>`;
+  document.getElementById('x').onclick = () => { S.tab = 'practice'; render(); };
+  document.getElementById('go').onclick = () => startLesson(id, 'task');
+}
+
+/* ───── Techniques library ───── */
+function renderTech(){
+  let html = topbar() + `<h1>Техники</h1><p class="muted">Справочник: вся теория курса. Нажмите, чтобы раскрыть.</p>`;
+  COURSE.forEach(u => {
+    html += `<div class="unit" style="background:${u.color};margin-top:20px"><h2>${u.title}</h2></div>`;
+    u.lessons.forEach(l => {
+      const th = l.steps.filter(s => s.type === 'theory').map(s => s.body).join('');
+      html += `<details class="card tech"><summary><span class="rowic">${l.icon}</span><b>${esc(l.title)}</b></summary>${th}
+        <div class="row-btns">${hasTask(l) ? `<button class="btn ok" data-task="${l.id}">🎯 К заданию</button>` : ''}
+        <button class="btn ghost" data-lesson="${l.id}">Пройти урок с тестом</button></div></details>`;
+    });
+  });
+  $app.innerHTML = html + nav();
+  document.querySelectorAll('[data-task]').forEach(b => b.onclick = () => openTask(b.dataset.task));
+  document.querySelectorAll('[data-lesson]').forEach(b => b.onclick = () => startLesson(b.dataset.lesson));
 }
 
 /* ───── Journal ───── */
@@ -188,7 +242,7 @@ function renderProfile(){
     <div class="card"><b>Прогресс по разделам</b>${units}</div>
     <div class="card"><p class="muted">Курс носит образовательный характер. При боли, травмах или проблемах со здоровьем обратитесь к врачу.</p></div>
     <button class="btn ghost" id="reset">Сбросить прогресс</button>` + nav();
-  document.getElementById('reset').onclick = () => { if (confirm('Удалить весь прогресс и отчёты?')) { S = { adult:true, done:{}, xp:0, streak:0, lastDay:null, reports:[], tab:'learn' }; save(); render(); } };
+  document.getElementById('reset').onclick = () => { if (confirm('Удалить весь прогресс и отчёты?')) { S = { adult:true, done:{}, tasksDone:{}, xp:0, streak:0, lastDay:null, reports:[], tab:'learn' }; save(); render(); } };
 }
 
 render();

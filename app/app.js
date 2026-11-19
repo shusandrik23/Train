@@ -28,7 +28,7 @@ const liveStreak = () => {
 function renderGate(){
   $app.innerHTML = `<div class="center" style="padding-top:12vh">
     <div class="big">🔞</div><h1>Oralingo</h1>
-    <p class="muted">Курс сексуального просвещения для взрослых: 8 разделов, 50 уроков, теория, тесты и практические задания с отчётами.</p>
+    <p class="muted">Курс сексуального просвещения для взрослых. Разделов: ${COURSE.length}, уроков: ${ALL.length}, практических заданий с отчётами: ${ALL.filter(hasTask).length}.</p>
     <div class="card" style="text-align:left"><p>Продолжая, вы подтверждаете, что вам <b>исполнилось 18 лет</b> и вы хотите видеть откровенный образовательный контент.</p>
     <p class="muted">Прогресс хранится только в этом браузере.</p></div>
     <button class="btn" id="yes">Мне 18+, начать</button><div style="height:12px"></div>
